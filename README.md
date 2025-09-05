@@ -18,3 +18,20 @@ The Interlisp-D Lafite mail client retained the Laurel file format.
 archive and forensics tools like [ePADD](https://www.epaddproject.org).
 
 This software will convert Laurel files into mbox format.
+
+To run it, you need Java (JRE) 21 or later installed.
+
+Run the program with arguments `--laurel` for the Laurel file and `--mbox` for the output MBox file,
+as in this example.  The Java app is in the JAR file `LafiteToMBox-1.0-SNAPSHOT-fat.jar`, assumed to be in the
+current directory.
+
+```bash
+$ java -cp LafiteToMBox-1.0-SNAPSHOT-fat.jar org.interlisp.lafite_to_mbox.Main --laurel data/laurel/Tutorial.mail --mbox /tmp/Tutorial.mbox
+```
+
+You'll see output like
+```
+14:34:45.348 [main] INFO org.interlisp.lafite_to_mbox.Main -- Converting data/laurel/Tutorial.mail to /tmp/Tutorial.mbox
+14:34:45.386 [main] INFO org.interlisp.lafite_to_mbox.Main -- Processed 17 message(s)
+```
+The result is written to the file `/tmp/Tutorial.mbox`.

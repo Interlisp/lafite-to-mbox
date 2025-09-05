@@ -10,13 +10,27 @@ repositories {
 }
 
 dependencies {
-    implementation 'ch.qos.logback:logback-classic:1.5.13'
+    implementation 'ch.qos.logback:logback-classic:1.5.16'
+
     implementation "org.jcommander:jcommander:2.0"
 
     implementation 'org.eclipse.angus:jakarta.mail:2.0.3'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+def mainClassName = 'org.interlisp.lafite_to_mbox.Main'
+
+tasks.register('fatJar', Jar) {
+    group = "build"
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+    archiveBaseName = 'LafiteToMBox-1.0-SNAPSHOT-fat.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
 }
 
 test {
