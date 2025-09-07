@@ -26,7 +26,7 @@ as in this example.  The Java app is in the JAR file `LafiteToMBox-1.0-SNAPSHOT-
 current directory.
 
 ```bash
-$ java -cp LafiteToMBox-1.0-SNAPSHOT-fat.jar org.interlisp.lafite_to_mbox.Main --laurel data/laurel/Tutorial.mail --mbox /tmp/Tutorial.mbox
+$ java -jar LafiteToMBox-1.0-SNAPSHOT-fat.jar --laurel data/laurel/Tutorial.mail --mbox /tmp/Tutorial.mbox
 ```
 
 You'll see output like
