@@ -1,3 +1,7 @@
+/**
+ * Build the LafiteToMBox converter.
+ */
+
 plugins {
     id 'java'
 }
@@ -27,7 +31,6 @@ tasks.register('fatJar', Jar) {
     manifest {
         attributes 'Main-Class': mainClassName
     }
-    archiveBaseName = 'LafiteToMBox-1.0-SNAPSHOT-fat.jar'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
     with jar
