@@ -1,7 +1,10 @@
 #!/bin/bash
 
-cd "$1" || exit
+echo Will write to "$2"
+pwd
 
-for file in *.mail; do
-  java -jar ~/Projects/LafiteToMBox/build/libs/LafiteToMBox-1.0-SNAPSHOT.jar --laurel "$file" --mbox "$file".mbox
+files=$(cd "$1"; echo *.mail)
+
+for file in $files; do
+  java -jar build/libs/LafiteToMBox-1.0-SNAPSHOT.jar --laurel "$1"/"$file" --mbox "$2"/"$file".mbox
 done

@@ -22,7 +22,9 @@ public class Main {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG_HEADERS = false;
+
+    private static final boolean DEBUG_BODY = false;
 
     private static final String PROGRAM_NAME = Main.class.getPackageName();
 
@@ -38,16 +40,15 @@ public class Main {
      */
     private static final Pattern FORMAT_PATTERN = Pattern.compile("Format: *(.*)$", Pattern.CASE_INSENSITIVE);
 
-    private static final String TEDIT_MIME_TYPE = "application/vnd.xerox.tedit";
+    private static final String TEDIT_MIME_TYPE = "application/vnd.interlisp.tedit";
 
     private static final String UNKNOWN_MIME_TYPE = "application/octet-stream";
 
-    private static final String PLAiN_TEXT_MIME_TYPE = "text/plain";
+    private static final String PLAiN_TEXT_MIME_TYPE = "text/plain; charset=x-xerox-xccs";
 
     private static final String TEDIT_FORMAT_LC = "tedit";
 
     private static final String TEXT_FORMAT = "text";
-
 
     /**
      * How many characters terminate an input line?
@@ -115,7 +116,11 @@ public class Main {
         }
 
         if (programArgs.laurelFile != null && programArgs.mboxFile != null) {
-            processFile(programArgs.laurelFile, programArgs.mboxFile);
+            try {
+                processFile(programArgs.laurelFile, programArgs.mboxFile);
+            } catch (Throwable t) {
+                log.error("Error converting " + programArgs.laurelFile, t);
+            }
         } else if (programArgs.dir != null) {
             log.warn("Not implemented yet");
         } else {
@@ -149,18 +154,20 @@ public class Main {
 
             int messages = 0;
 
+            // loop over all messages in the Lafite file
             while (true) {
+                // read the stamp
                 LafiteIO.LineStatus status = io.readLine();
                 if (status.isEof()) {
                     // we're done!
                     log.info("Processed {} message(s)", messages);
                     return;
                 }
+
                 if (!START.equals(status.getChars())) {
                     log.error("Expected {}, got {}", START, status.getChars());
                     throw new IllegalStateException(START + " not found");
                 }
-
                 status = io.readLine();
                 final Matcher lengthsAndFlagsMatcher = LENGTHS_AND_FLAGS_PATTERN.matcher(status.getChars());
                 if (!lengthsAndFlagsMatcher.matches()) {
@@ -172,44 +179,63 @@ public class Main {
 
                 checkDeleted(lengthsAndFlags);
                 checkSeen(lengthsAndFlags);
+                final int messageLength = lengthsAndFlags.messageLength;
 
                 int charsRead = lengthsAndFlags.stampLength; // for the two stamp lines
 
+                // the default body format is text
                 String bodyFormat = TEXT_FORMAT;
 
+                // write the mandatory mbox message delimiter
                 io.writeLine("From " + PROGRAM_NAME + " " + new Date());
 
-                // read the headers
-                while (charsRead < lengthsAndFlags.messageLength) {
-                    status = io.readLine();
+                // read the headers and copy them to the output. replace the TEdit format line if found.
+                while (charsRead < messageLength) {
+                    status = io.readLine(messageLength - charsRead - 1);
                     charsRead += status.getCharsRead() + NEWLINE_LENGTH;
                     final String line = status.getChars();
+                    if (DEBUG_HEADERS) {
+                        log.info("Header> '{}'", line);
+                    }
                     final Matcher formatMatch = FORMAT_PATTERN.matcher(line);
                     if (formatMatch.matches()) {
-                        log.info("Format is {}", formatMatch.group(1));
-                        bodyFormat = formatMatch.group(1).toLowerCase();
-                        writeContentHeader(fos, bodyFormat);
-                    } else if (status.getCharsRead() == 0) {
-                        // finished reading the headers
-                        if (TEDIT_FORMAT_LC.equals(bodyFormat)) {
-                            // the message body contains binary data so copy it verbatim
-                            copyMessageRemainder(fis, fos, lengthsAndFlags.messageLength - charsRead);
-                            io.writeLine();
-                            break;
+                        if (DEBUG_HEADERS) {
+                            log.info("Format is {}", formatMatch.group(1));
                         }
+                        bodyFormat = formatMatch.group(1).toLowerCase();
+                    } else if (status.getCharsRead() == 0) {
+                        // we've finished reading the headers. if not TEdit, write the text content header
+                        writeContentHeader(fos, bodyFormat);
+                        break;
                     } else {
+                        // copy the header, whatever it is
                         io.writeLine(line);
-                    }
-
-                    if (DEBUG) {
-                        log.info("> '{}'", line);
                     }
                 }
 
+                // write a blank line between headers and body
                 io.writeLine();
 
-                if (charsRead > lengthsAndFlags.messageLength + 1) { // don't count the final newline
-                    log.error("Read too far: charsRead = {}, should be {}", charsRead, lengthsAndFlags.messageLength);
+                // read the body.  If format = TEdit, copy the message body verbatim.
+                // if not TEdit, read the text and terminate on reading up to the length
+                if (isBinary(bodyFormat)) {
+                    copyMessageRemainder(fis, fos, messageLength - charsRead);
+                } else {
+                    // copy a line at a time, converting the end-of-line characters
+                    while (charsRead < messageLength) {
+                        status = io.readLine(messageLength - charsRead - 1);
+                        charsRead += status.getCharsRead() + NEWLINE_LENGTH;
+                        final String line = status.getChars();
+                        if (DEBUG_BODY) {
+                            log.info("> '{}'", line);
+                        }
+
+                        io.writeLine(line);
+                    }
+                }
+
+                if (charsRead > messageLength + 1) { // don't count the final newline
+                    log.error("Read too far: charsRead = {}, should be {}", charsRead, messageLength);
                     throw new IllegalStateException("Read too far");
                 }
 
@@ -225,7 +251,7 @@ public class Main {
         final byte[] copyBuffer = new byte[byteCount];
         final int bytesRead = fis.read(copyBuffer);
         if (bytesRead != byteCount) {
-            throw new IOException("Expected "+byteCount+" bytes, read "+bytesRead+" bytws");
+            throw new IOException("Expected " + byteCount + " bytes, read " + bytesRead + " bytws");
         }
         fos.write(copyBuffer);
     }
@@ -240,6 +266,16 @@ public class Main {
                 };
         os.write(contentType.getBytes());
         os.write(NEWLINE);
+    }
+
+    /**
+     * Is the format non-text?
+     *
+     * @param format the format, as found in the Format: header
+     * @return true if it's a binary format, false otherwise
+     */
+    private boolean isBinary(String format) {
+        return !TEXT_FORMAT.equals(format);
     }
 
     private void checkSeen(LengthsAndFlags lengthsAndFlags) {

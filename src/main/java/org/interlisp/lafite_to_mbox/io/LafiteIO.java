@@ -29,14 +29,16 @@ public class LafiteIO {
 
     /**
      * Read a line of text from a Laurel file {@link InputStream} into a {@link StringBuffer} supplied by the caller.
-     * Consume and discard any end-of-line characters that may follow.
+     * Consume and discard any end-of-line character that may follow.
      * Return a {@link LineStatus} that includes the number of chars read
      *
+     * @param noMoreThan limit on the number of characters read
      * @return the number of characters read
      */
-    public LineStatus readLine() throws IOException {
+    public LineStatus readLine(int noMoreThan) throws IOException {
         final StringBuffer sb = new StringBuffer();
-        while (true) {
+        int charsRead = 0;
+        while (charsRead <= noMoreThan) {
             final int ch = is.read();
             if (ch == -1) {
                 return new LineStatus(true, sb);
@@ -44,8 +46,21 @@ public class LafiteIO {
                 return new LineStatus(false, sb);
             } else {
                 sb.appendCodePoint(ch);
+                charsRead++;
             }
         }
+        return new LineStatus(true, sb);
+    }
+
+    /**
+     * Read a line of text from a Laurel file {@link InputStream} into a {@link StringBuffer} supplied by the caller.
+     * Consume and discard any end-of-line character that may follow.
+     * Return a {@link LineStatus} that includes the number of chars read
+     *
+     * @return the number of characters read
+     */
+    public LineStatus readLine() throws IOException {
+        return readLine(Integer.MAX_VALUE);
     }
 
     /**
