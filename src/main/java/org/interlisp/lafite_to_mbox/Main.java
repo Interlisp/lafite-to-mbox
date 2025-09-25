@@ -33,7 +33,7 @@ public class Main {
     /**
      * The format of the line that contains the message length and seen and deleted flags.
      */
-    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("(\\d{5}) (\\d{5}) ([UD])([SU]).$");
+    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("(\\d{5}) (\\d{5}) ([UD])([SU])(.)$");
 
     /**
      * Extract the Format: header's value.
@@ -78,8 +78,9 @@ public class Main {
      * @param stampLength   the stamp length (included in <tt>messageLength</tt>
      * @param deleted       is the message marked as deleted?
      * @param seen          is the message marked as having been seen?
+     * @param fixed         did we manually fix the message?
      */
-    private record LengthsAndFlags(int messageLength, int stampLength, char deleted, char seen) {
+    private record LengthsAndFlags(int messageLength, int stampLength, char deleted, char seen, char fixed) {
 
         /**
          * Convert native formats to Java primitive types.
@@ -89,9 +90,10 @@ public class Main {
          * @param deletedStr       is the message marked as deleted? as a string
          * @param seenStr          is the message marked as having been seen? as a string
          */
-        private LengthsAndFlags(String messageLengthStr, String stampLengthStr, String deletedStr, String seenStr) {
+        private LengthsAndFlags(String messageLengthStr, String stampLengthStr, String deletedStr, String seenStr,
+                                String fixedStr) {
             this(Integer.parseInt(messageLengthStr), Integer.parseInt(stampLengthStr),
-                    deletedStr.charAt(0), seenStr.charAt(0));
+                    deletedStr.charAt(0), seenStr.charAt(0), fixedStr.charAt(0));
         }
 
     }
@@ -136,7 +138,7 @@ public class Main {
      * </p>
      * <pre>
      * *start*
-     * 01659 00024 UU
+     * 01659 00024 UUF
      * headers
      * body
      * </pre>
@@ -165,20 +167,21 @@ public class Main {
                 }
 
                 if (!START.equals(status.getChars())) {
-                    log.error("Expected {}, got {}", START, status.getChars());
+                    log.error("Expected '{}', got '{}'", START, status.getChars());
                     throw new IllegalStateException(START + " not found");
                 }
                 status = io.readLine();
                 final Matcher lengthsAndFlagsMatcher = LENGTHS_AND_FLAGS_PATTERN.matcher(status.getChars());
                 if (!lengthsAndFlagsMatcher.matches()) {
-                    log.error("Expected lengths and flags, got {}", status.getChars());
+                    log.error("Expected lengths and flags, got '{}'", status.getChars());
                     throw new IllegalStateException("Lengths and flags not found: " + status.getChars());
                 }
                 final LengthsAndFlags lengthsAndFlags = new LengthsAndFlags(lengthsAndFlagsMatcher.group(1), lengthsAndFlagsMatcher.group(2),
-                        lengthsAndFlagsMatcher.group(3), lengthsAndFlagsMatcher.group(4));
+                        lengthsAndFlagsMatcher.group(3), lengthsAndFlagsMatcher.group(4), lengthsAndFlagsMatcher.group(5));
 
                 checkDeleted(lengthsAndFlags);
                 checkSeen(lengthsAndFlags);
+                final boolean messageFixed = lengthsAndFlags.fixed == 'F';
                 final int messageLength = lengthsAndFlags.messageLength;
 
                 int charsRead = lengthsAndFlags.stampLength; // for the two stamp lines
@@ -206,6 +209,7 @@ public class Main {
                     } else if (status.getCharsRead() == 0) {
                         // we've finished reading the headers. if not TEdit, write the text content header
                         writeContentHeader(fos, bodyFormat);
+                        writeFixedHeader(fos, messageFixed);
                         break;
                     } else {
                         // copy the header, whatever it is
@@ -266,6 +270,13 @@ public class Main {
                 };
         os.write(contentType.getBytes());
         os.write(NEWLINE);
+    }
+
+    private void writeFixedHeader(FileOutputStream os, boolean messageWasFixed) throws IOException {
+        if (messageWasFixed) {
+            os.write("X-Message-Repaired: true".getBytes());
+            os.write(NEWLINE);
+        }
     }
 
     /**
