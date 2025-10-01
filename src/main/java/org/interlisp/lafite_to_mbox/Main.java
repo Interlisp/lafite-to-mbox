@@ -26,6 +26,8 @@ public class Main {
 
     private static final boolean DEBUG_BODY = false;
 
+    private static final boolean DEBUG_UNDOCUMENTED_FLAGS = false;
+
     private static final String PROGRAM_NAME = Main.class.getPackageName();
 
     private static final String START = "*start*";
@@ -78,7 +80,7 @@ public class Main {
      * @param stampLength   the stamp length (included in <tt>messageLength</tt>
      * @param deleted       is the message marked as deleted?
      * @param seen          is the message marked as having been seen?
-     * @param fixed         did we manually fix the message?
+     * @param fixed         did we manually fix the message?  Or another, undocumented value.
      */
     private record LengthsAndFlags(int messageLength, int stampLength, char deleted, char seen, char fixed) {
 
@@ -89,11 +91,31 @@ public class Main {
          * @param stampLengthStr   the stamp length as a string
          * @param deletedStr       is the message marked as deleted? as a string
          * @param seenStr          is the message marked as having been seen? as a string
+         * @param fixedStr         did we manually fix the message?  Or another, undocumented value.
          */
         private LengthsAndFlags(String messageLengthStr, String stampLengthStr, String deletedStr, String seenStr,
                                 String fixedStr) {
             this(Integer.parseInt(messageLengthStr), Integer.parseInt(stampLengthStr),
                     deletedStr.charAt(0), seenStr.charAt(0), fixedStr.charAt(0));
+        }
+
+        /**
+         * Return true if the flag, supposedly always a space character, has a value that's not space
+         * or 'F' for "fixed."
+         *
+         * @return true if the flag has an undocumented value
+         */
+        private boolean isUndocumentedFlag() {
+            return fixed != 'F' && fixed != ' ';
+        }
+
+        /**
+         * Return true if the "fixed" flag is set.
+         *
+         * @return true if the "fixed" flag is set
+         */
+        private boolean isFixed() {
+            return fixed == 'F';
         }
 
     }
@@ -181,7 +203,9 @@ public class Main {
 
                 checkDeleted(lengthsAndFlags);
                 checkSeen(lengthsAndFlags);
-                final boolean messageFixed = lengthsAndFlags.fixed == 'F';
+                if (DEBUG_UNDOCUMENTED_FLAGS && lengthsAndFlags.isUndocumentedFlag()) {
+                    log.info("Message {} has undocumented flag '{}'", messages, lengthsAndFlags.fixed);
+                }
                 final int messageLength = lengthsAndFlags.messageLength;
 
                 int charsRead = lengthsAndFlags.stampLength; // for the two stamp lines
@@ -209,7 +233,7 @@ public class Main {
                     } else if (status.getCharsRead() == 0) {
                         // we've finished reading the headers. if not TEdit, write the text content header
                         writeContentHeader(fos, bodyFormat);
-                        writeFixedHeader(fos, messageFixed);
+                        writeFixedHeader(fos, lengthsAndFlags.isFixed());
                         break;
                     } else {
                         // copy the header, whatever it is
