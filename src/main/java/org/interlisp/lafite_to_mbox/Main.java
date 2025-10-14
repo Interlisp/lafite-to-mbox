@@ -13,6 +13,8 @@ import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.regex.Pattern.CASE_INSENSITIVE;
+
 /*
  * Convert Laurel/Lafite mail files to mbox format.
  *
@@ -40,7 +42,12 @@ public class Main {
     /**
      * Extract the Format: header's value.
      */
-    private static final Pattern FORMAT_PATTERN = Pattern.compile("Format: *(.*)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FORMAT_PATTERN = Pattern.compile("^Format: *(.*)$", CASE_INSENSITIVE);
+
+    /**
+     * Detect lines that start with "From".
+     */
+    private static final Pattern DELIMIT_THIS_LINE_PATTERN = Pattern.compile("^From.*$", CASE_INSENSITIVE);
 
     private static final String TEDIT_MIME_TYPE = "application/vnd.interlisp.tedit";
 
@@ -257,7 +264,10 @@ public class Main {
                         if (DEBUG_BODY) {
                             log.info("> '{}'", line);
                         }
-
+                        final Matcher delimitThisMatcher = DELIMIT_THIS_LINE_PATTERN.matcher(line);
+                        if (delimitThisMatcher.matches()) {
+                            io.write(">"); // delimit lines starting with "From", etc.
+                        }
                         io.writeLine(line);
                     }
                 }

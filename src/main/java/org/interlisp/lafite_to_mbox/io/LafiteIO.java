@@ -70,8 +70,18 @@ public class LafiteIO {
      * @throws IOException if there was an output problem
      */
     public void writeLine(String s) throws IOException {
-        os.write(s.getBytes(), 0, s.length());
+        write(s);
         os.write(NEWLINE);
+    }
+
+    /**
+     * Write a string without a newline.
+     *
+     * @param s the string
+     * @throws IOException if there was an output problem
+     */
+    public void write(String s) throws IOException {
+        os.write(s.getBytes(), 0, s.length());
     }
 
     /**
