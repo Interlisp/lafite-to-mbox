@@ -6,6 +6,7 @@ import org.interlisp.lafite_to_mbox.io.LafiteIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -71,13 +72,16 @@ public class Main {
 
     private static class Args {
         @Parameter(names = {"--laurel"})
-        private String laurelFile;
+        private File laurelFile;
 
         @Parameter(names = {"--mbox"})
-        private String mboxFile;
+        private File mboxFile;
 
-        @Parameter(names = {"--dir"})
-        private String dir;
+        @Parameter(names = {"--indir"})
+        private File inDir;
+
+        @Parameter(names = {"--outdir"})
+        private File outDir;
     }
 
     /**
@@ -124,7 +128,6 @@ public class Main {
         private boolean isFixed() {
             return fixed == 'F';
         }
-
     }
 
     /**
@@ -140,9 +143,27 @@ public class Main {
         main.process(programArgs);
     }
 
+    private void usage() {
+        log.warn("Usage:");
+        log.warn("To convert a single file:");
+        log.warn("    java -jar build/libs/LafiteToMBox-1.0-SNAPSHOT.jar --laurel mailfile.mail --mbox mailfile.mbox");
+        log.warn("");
+        log.warn("To convert an entire directory:");
+        log.warn("    java -jar build/libs/LafiteToMBox-1.0-SNAPSHOT.jar --indir /my/lafite/dir --outdir /my/mbox/dir");
+        log.warn("");
+        log.warn("Using --indir, we assume the Laurel/Lafite files all have names that end with `.mail`, and");
+        log.warn("Using --outdir, we write the mbox files with the original Laurel/Lafite file name with '.mbox' appended.");
+    }
+
+
     private void process(Args programArgs) {
-        if (programArgs.laurelFile != null && programArgs.dir != null) {
-            log.error("Can't handle both 'dir' and 'laurel'. Pick one.");
+        if (programArgs.inDir == null && programArgs.outDir == null &&
+                programArgs.laurelFile == null && programArgs.mboxFile == null) {
+            usage();
+            return;
+        }
+        if (programArgs.laurelFile != null && programArgs.inDir != null) {
+            log.error("Can't handle both 'indir' and 'laurel'. Pick one.");
             System.exit(1);
         }
 
@@ -152,15 +173,60 @@ public class Main {
             } catch (Throwable t) {
                 log.error("Error converting " + programArgs.laurelFile, t);
             }
-        } else if (programArgs.dir != null) {
-            log.warn("Not implemented yet");
+        } else if (programArgs.inDir != null) {
+            if (programArgs.outDir == null) {
+                log.error("You must specify -indir and -outdir");
+                return;
+            } else if (!programArgs.inDir.isDirectory()) {
+                log.error("indir '{}' is not a directory", programArgs.inDir);
+                return;
+            } else if (!programArgs.outDir.isDirectory()) {
+                if (!programArgs.outDir.exists()) {
+                    log.warn("Directory '{}' does not exist; trying to create it...", programArgs.outDir);
+                    final boolean madeDirs = programArgs.outDir.mkdirs();
+                    if (madeDirs) {
+                        log.warn("Created directory '{}' successfully", programArgs.outDir);
+                    } else {
+                        log.error("Could not create directory '{}', exiting", programArgs.outDir);
+                        return;
+                    }
+                }
+            }
+            processDir(programArgs.inDir, programArgs.outDir);
+        } else if (programArgs.outDir != null) {
+            log.error("You must specify -indir and -outdir");
         } else {
             log.warn("Nothing to do");
         }
     }
 
     /**
-     * Convert a Lafite mail file tto mbox format.  The mbox file will have the same name
+     * Convert a directory of Laurel/Lafite files in <tt>inDir</tt> to mbox format in <tt>outDir</tt>.
+     *
+     * @param inDir the directory that holds the files to be converted
+     * @param outDir the directory that holds the files to be converted
+     */
+    private void processDir(File inDir, File outDir) {
+        final File[] lafiteFiles = inDir.listFiles(file -> file.isFile() && file.getName().endsWith(".mail"));
+        if (lafiteFiles == null) {
+            log.warn("Directory {}' contains no files", inDir);
+            return;
+        }
+        log.info("Converting files in {} to {}", inDir, outDir);
+        for (File lafiteFile : lafiteFiles) {
+            final String namePortion = lafiteFile.getName();
+            final File mboxFile = new File(outDir, namePortion+".mbox");
+            try {
+                processFile(lafiteFile, mboxFile);
+            } catch (Throwable t) {
+                log.error("Error converting " + lafiteFile, t);
+            }
+        }
+        log.info("Finished converting files in {}", inDir);
+    }
+
+    /**
+     * Convert a Lafite mail file to mbox format.  The mbox file will have the same name
      * as the Lafite file, with the ".mbox" suffix.
      * <p>
      * The file looks like
@@ -175,7 +241,7 @@ public class Main {
      * @param lafiteFile the name of the Lafite input file
      * @param mboxFile   the name of the mbox output file
      */
-    private void processFile(String lafiteFile, String mboxFile) {
+    private void processFile(File lafiteFile, File mboxFile) {
         log.info("Converting {} to {}", lafiteFile, mboxFile);
 
         try (final FileInputStream fis = new FileInputStream(lafiteFile);
