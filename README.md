@@ -57,3 +57,13 @@ You can induce the software to write low-level progress messages to the console 
 argument.  `--debug headers` will log information about the message headers, `--debug body` will log
 information about message bodies, and `--debug flags` will log any undocumented message status flags
 encountered.  You can combine the options, e.g., `-- debug body,flags`.
+
+## Building the software
+
+Execute the Gradle `fatJar` task.  For example:
+
+```
+$ ./gradlew faatJar
+```
+
+The result will be `build/libs/LafiteToMBox-1.0-SNAPSHOT.jar`.
