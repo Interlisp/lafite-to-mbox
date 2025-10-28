@@ -64,6 +64,22 @@ public class LafiteIO {
     }
 
     /**
+     * Read ahead this many bytes.
+     *
+     * @param numBytes how many bytes to read and discard
+     * @throws IOException              if the bad thing happens
+     * @throws IllegalArgumentException if we ask for a position behind the current one, or past the EOF
+     */
+    public void skipAhead(int numBytes) throws IOException {
+        for (int i = 0; i < numBytes; i++) {
+            final int byteRead = is.read();
+            if (byteRead == -1) {
+                throw new IOException("Read past EOF");
+            }
+        }
+    }
+
+    /**
      * Write the string to the {@link OutputStream} and follow it by a newline.
      *
      * @param s the string

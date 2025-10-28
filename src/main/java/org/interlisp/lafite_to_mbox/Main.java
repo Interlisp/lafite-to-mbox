@@ -10,7 +10,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,12 +27,6 @@ public class Main {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private static final boolean DEBUG_HEADERS = false;
-
-    private static final boolean DEBUG_BODY = false;
-
-    private static final boolean DEBUG_UNDOCUMENTED_FLAGS = false;
-
     private static final String PROGRAM_NAME = Main.class.getPackageName();
 
     private static final String START = "*start*";
@@ -38,7 +34,7 @@ public class Main {
     /**
      * The format of the line that contains the message length and seen and deleted flags.
      */
-    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("(\\d{5}) (\\d{5}) ([UD])([SU])(.)$");
+    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("^(\\d+) (\\d+) ([UD])([SU])(.)$");
 
     /**
      * Extract the Format: header's value.
@@ -70,6 +66,12 @@ public class Main {
      */
     private static final int NEWLINE = 10;
 
+    private boolean debugHeaders = false;
+
+    private boolean debugBody = false;
+
+    private boolean debugUndocumentedFlags = false;
+
     private static class Args {
         @Parameter(names = {"--laurel"})
         private File laurelFile;
@@ -82,6 +84,9 @@ public class Main {
 
         @Parameter(names = {"--outdir"})
         private File outDir;
+
+        @Parameter(names = {"--debug"})
+        private Set<String> debug = Collections.emptySet();
     }
 
     /**
@@ -153,8 +158,10 @@ public class Main {
         log.warn("");
         log.warn("Using --indir, we assume the Laurel/Lafite files all have names that end with `.mail`, and");
         log.warn("Using --outdir, we write the mbox files with the original Laurel/Lafite file name with '.mbox' appended.");
+        log.warn("");
+        log.warn("You can provide the --debug parameter with comma-separated values 'body', 'headers', and 'flags'");
+        log.warn("to see those for each message.");
     }
-
 
     private void process(Args programArgs) {
         if (programArgs.inDir == null && programArgs.outDir == null &&
@@ -166,6 +173,9 @@ public class Main {
             log.error("Can't handle both 'indir' and 'laurel'. Pick one.");
             System.exit(1);
         }
+        debugBody = programArgs.debug.contains("body");
+        debugHeaders = programArgs.debug.contains("headers");
+        debugUndocumentedFlags = programArgs.debug.contains("flags");
 
         if (programArgs.laurelFile != null && programArgs.mboxFile != null) {
             try {
@@ -262,10 +272,11 @@ public class Main {
                 }
 
                 if (!START.equals(status.getChars())) {
-                    log.error("Expected '{}', got '{}'", START, status.getChars());
+                    log.error("Message {}: Expected '{}', got '{}'", messages, START, status.getChars());
                     throw new IllegalStateException(START + " not found");
                 }
                 status = io.readLine();
+                int charsRead = status.getCharsRead();
                 final Matcher lengthsAndFlagsMatcher = LENGTHS_AND_FLAGS_PATTERN.matcher(status.getChars());
                 if (!lengthsAndFlagsMatcher.matches()) {
                     log.error("Expected lengths and flags, got '{}'", status.getChars());
@@ -276,12 +287,17 @@ public class Main {
 
                 checkDeleted(lengthsAndFlags);
                 checkSeen(lengthsAndFlags);
-                if (DEBUG_UNDOCUMENTED_FLAGS && lengthsAndFlags.isUndocumentedFlag()) {
+                if (debugUndocumentedFlags && lengthsAndFlags.isUndocumentedFlag()) {
                     log.info("Message {} has undocumented flag '{}'", messages, lengthsAndFlags.fixed);
                 }
                 final int messageLength = lengthsAndFlags.messageLength;
 
-                int charsRead = lengthsAndFlags.stampLength; // for the two stamp lines
+                // some messages, like those from Fuji Xerox people, contain non-standard headers that start with '@'. Skip them.
+                if (debugHeaders) {
+                    log.info("Read {} bytes, skipping {} bytes", charsRead, lengthsAndFlags.stampLength - charsRead - START.length() - 2 * NEWLINE_LENGTH);
+                }
+                io.skipAhead(lengthsAndFlags.stampLength - charsRead - START.length() - 2 * NEWLINE_LENGTH);
+                charsRead = lengthsAndFlags.stampLength;
 
                 // the default body format is text
                 String bodyFormat = TEXT_FORMAT;
@@ -294,12 +310,12 @@ public class Main {
                     status = io.readLine(messageLength - charsRead - 1);
                     charsRead += status.getCharsRead() + NEWLINE_LENGTH;
                     final String line = status.getChars();
-                    if (DEBUG_HEADERS) {
+                    if (debugHeaders) {
                         log.info("Header> '{}'", line);
                     }
                     final Matcher formatMatch = FORMAT_PATTERN.matcher(line);
                     if (formatMatch.matches()) {
-                        if (DEBUG_HEADERS) {
+                        if (debugHeaders) {
                             log.info("Format is {}", formatMatch.group(1));
                         }
                         bodyFormat = formatMatch.group(1).toLowerCase();
@@ -327,7 +343,7 @@ public class Main {
                         status = io.readLine(messageLength - charsRead - 1);
                         charsRead += status.getCharsRead() + NEWLINE_LENGTH;
                         final String line = status.getChars();
-                        if (DEBUG_BODY) {
+                        if (debugBody) {
                             log.info("> '{}'", line);
                         }
                         final Matcher delimitThisMatcher = DELIMIT_THIS_LINE_PATTERN.matcher(line);
