@@ -34,7 +34,7 @@ public class Main {
     /**
      * The format of the line that contains the message length and seen and deleted flags.
      */
-    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("^(\\d+) (\\d+) ([UD])([SU])(.)$");
+    private static final Pattern LENGTHS_AND_FLAGS_PATTERN = Pattern.compile("^(\\d+) (\\d+) ([UD])([SU])(.+)$");
 
     /**
      * Extract the Format: header's value.
@@ -96,9 +96,9 @@ public class Main {
      * @param stampLength   the stamp length (included in <tt>messageLength</tt>
      * @param deleted       is the message marked as deleted?
      * @param seen          is the message marked as having been seen?
-     * @param fixed         did we manually fix the message?  Or another, undocumented value.
+     * @param otherFlags    did we manually fix the message?  Or another, undocumented value.
      */
-    private record LengthsAndFlags(int messageLength, int stampLength, char deleted, char seen, char fixed) {
+    private record LengthsAndFlags(int messageLength, int stampLength, char deleted, char seen, String otherFlags) {
 
         /**
          * Convert native formats to Java primitive types.
@@ -107,31 +107,31 @@ public class Main {
          * @param stampLengthStr   the stamp length as a string
          * @param deletedStr       is the message marked as deleted? as a string
          * @param seenStr          is the message marked as having been seen? as a string
-         * @param fixedStr         did we manually fix the message?  Or another, undocumented value.
+         * @param otherFlags       did we manually fix the message?  Or another, undocumented value.
          */
         private LengthsAndFlags(String messageLengthStr, String stampLengthStr, String deletedStr, String seenStr,
-                                String fixedStr) {
+                                String otherFlags) {
             this(Integer.parseInt(messageLengthStr), Integer.parseInt(stampLengthStr),
-                    deletedStr.charAt(0), seenStr.charAt(0), fixedStr.charAt(0));
+                    deletedStr.charAt(0), seenStr.charAt(0), otherFlags);
         }
 
         /**
          * Return true if the flag, supposedly always a space character, has a value that's not space
-         * or 'F' for "fixed."
+         * or 'F' for "otherFlags."
          *
          * @return true if the flag has an undocumented value
          */
-        private boolean isUndocumentedFlag() {
-            return fixed != 'F' && fixed != ' ';
+        private boolean hasOtherFlags() {
+            return !otherFlags.equals(" ") && !otherFlags.contains("F");
         }
 
         /**
-         * Return true if the "fixed" flag is set.
+         * Return true if the "otherFlags" flag marks this message as having been repaired.
          *
-         * @return true if the "fixed" flag is set
+         * @return true if the "otherFlags" flag marks this message as having been repaired
          */
         private boolean isFixed() {
-            return fixed == 'F';
+            return otherFlags.contains("F");
         }
     }
 
@@ -287,8 +287,8 @@ public class Main {
 
                 checkDeleted(lengthsAndFlags);
                 checkSeen(lengthsAndFlags);
-                if (debugUndocumentedFlags && lengthsAndFlags.isUndocumentedFlag()) {
-                    log.info("Message {} has undocumented flag '{}'", messages, lengthsAndFlags.fixed);
+                if (debugUndocumentedFlags && lengthsAndFlags.hasOtherFlags()) {
+                    log.info("Message {} has undocumented flag '{}'", messages, lengthsAndFlags.otherFlags);
                 }
                 final int messageLength = lengthsAndFlags.messageLength;
 
