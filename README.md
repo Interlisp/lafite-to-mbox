@@ -6,24 +6,47 @@ realized in Interlisp-D code [here](https://xeroxparcarchive.computerhistory.org
 `PARSEMAILFOLDER1`).  There's a sample [here](https://xeroxparcarchive.computerhistory.org/_cd8_/laurel/Tutorial.mail!1).
 
 The format of the stamp field of a Laurel message is
-*stamp* <c.r.> <length.of.message.in.5.ascii.chars> <sp> <length.of.stamp.in.5.ascii.chars> <sp> <the.char.U.or.D> 
-<the.char.S.or.U> <any.char> <c.r.>
 
-U.or.D is Undeleted or Deleted 
-S.or.U is Seen or Unseen
+`*stamp* <c.r.> <length.of.message.in.5.ascii.chars> <sp> <length.of.stamp.in.5.ascii.chars> <sp> <the.char.U.or.D> 
+<the.char.S.or.U> <any.char> <c.r.>`
 
-The Interlisp-D Lafite mail client retained the Laurel file format.
+- `U.or.D` means Undeleted or Deleted 
+- `S.or.U` means Seen or Unseen
+
+The Interlisp-D Lafite mail client extended the Laurel format, allowing the length fields to exceed 5 digits and
+the flags field to include other characters.
 
 [The `mbox` format](https://en.wikipedia.org/wiki/Mbox) came later.  It's widely implemented in mail clients and email
 archive and forensics tools like [ePADD](https://www.epaddproject.org).
 
-This software will convert Laurel files into mbox format.
+This software will convert Laurel/Lafite files into mbox format.  We insert a `Content-Type:` header: in the message
+header; by default, the type is `text/plain; charset=x-xerox-xccs`.  Messages composed using the Interlisp-D "TEdit"
+styled-text format have type `application/vnd.interlisp.tedit`.  Messages in other formats are given the type
+`application/octet-stream`.
 
 To run it, you need Java (JRE) 21 or later installed.
 
-## Convert a single Laurel file to mbox format
+## Usage
 
-Run the program with arguments `--laurel` for the Laurel file and `--mbox` for the output MBox file,
+Run the program with no arguments to see a short usage guide:
+
+```bash
+$ java -jar LafiteToMBox-1.0-SNAPSHOT-fat.jar
+```
+
+That produces
+
+```
+14:34:45.348 [main] INFO org.interlisp.lafite_to_mbox.Main -- Usage:
+14:34:45.348 [main] INFO org.interlisp.lafite_to_mbox.Main -- To convert a single file:
+14:34:45.348 [main] INFO org.interlisp.lafite_to_mbox.Main --     java -jar build/libs/LafiteToMBox-1.0-SNAPSHOT.jar --laurel mailfile.mail --mbox mailfile.mbox
+... etc.
+```
+
+
+## Convert a single Laurel/Lafite file to mbox format
+
+Run the program with arguments `--laurel` for the Laurel/Lafite file and `--mbox` for the output MBox file,
 as in this example.  The Java app is in the JAR file `LafiteToMBox-1.0-SNAPSHOT-fat.jar`, assumed to be in the
 current directory.
 
@@ -36,7 +59,7 @@ You'll see output like
 14:34:45.348 [main] INFO org.interlisp.lafite_to_mbox.Main -- Converting data/laurel/Tutorial.mail to /tmp/Tutorial.mbox
 14:34:45.386 [main] INFO org.interlisp.lafite_to_mbox.Main -- Processed 17 message(s)
 ```
-The result is written to the file `/tmp/Tutorial.mbox`.
+The result in this example is written to the file `/tmp/Tutorial.mbox`.
 
 ## Convert all Laurel files in a directory to mbox format
 
@@ -63,7 +86,7 @@ encountered.  You can combine the options, e.g., `-- debug body,flags`.
 Execute the Gradle `fatJar` task.  For example:
 
 ```
-$ ./gradlew faatJar
+$ ./gradlew fatJar
 ```
 
 The result will be `build/libs/LafiteToMBox-1.0-SNAPSHOT.jar`.

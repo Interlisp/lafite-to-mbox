@@ -22,6 +22,8 @@ import static java.util.regex.Pattern.CASE_INSENSITIVE;
  * Convert Laurel/Lafite mail files to mbox format.
  *
  * Copyright 2025, Interlisp.org.  All rights reserved.
+ *
+ * @author Herb Jellinek
  */
 public class Main {
 
@@ -185,7 +187,7 @@ public class Main {
             }
         } else if (programArgs.inDir != null) {
             if (programArgs.outDir == null) {
-                log.error("You must specify -indir and -outdir");
+                log.error("You must specify --indir and --outdir");
                 return;
             } else if (!programArgs.inDir.isDirectory()) {
                 log.error("indir '{}' is not a directory", programArgs.inDir);
@@ -204,7 +206,7 @@ public class Main {
             }
             processDir(programArgs.inDir, programArgs.outDir);
         } else if (programArgs.outDir != null) {
-            log.error("You must specify -indir and -outdir");
+            log.error("You must specify --indir and --outdir");
         } else {
             log.warn("Nothing to do");
         }
